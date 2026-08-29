@@ -1,0 +1,13 @@
+project_id = "fujgwahltvbigyftpfjz"
+
+[functions.warehouse-api]
+verify_jwt = false
+
+[functions.warehouse-jsonp]
+verify_jwt = false
+
+[functions.warehouse-client-js]
+verify_jwt = false
+
+[functions.warehouse-go]
+verify_jwt = false
