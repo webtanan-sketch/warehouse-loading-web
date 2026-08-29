@@ -1,0 +1,40 @@
+import { createClient } from 'npm:@supabase/supabase-js@2';
+
+const adminKey=(()=>{
+  const modern=Deno.env.get('SUPABASE_SECRET_KEYS');
+  if(modern){try{return JSON.parse(modern).default}catch{}}
+  return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+})();
+
+const sb=createClient(Deno.env.get('SUPABASE_URL')!,adminKey);
+const VERSION='2';
+const html='<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>مدیریت بارگیری و دستمزد</title></head><body><script src="https://fujgwahltvbigyftpfjz.supabase.co/functions/v1/warehouse-client-js?v=2"></script></body></html>';
+
+async function publish(){
+  const fd=new FormData();
+  fd.append('file',new File([html],'warehouse.html',{type:'text/html'}));
+  const r=await fetch('https://api.display.dev/v1/public/artifacts',{method:'POST',body:fd});
+  if(!r.ok)throw new Error('publish failed '+r.status);
+  const j=await r.json();
+  if(!j.previewUrl)throw new Error('no preview url');
+  await sb.from('app_config').upsert([
+    {key:'warehouse_public_url',value:j.previewUrl},
+    {key:'warehouse_public_expiry',value:j.expiresAt||''},
+    {key:'warehouse_public_version',value:VERSION}
+  ]);
+  return j.previewUrl as string;
+}
+
+Deno.serve(async()=>{
+  try{
+    const {data}=await sb.from('app_config').select('key,value').in('key',['warehouse_public_url','warehouse_public_expiry','warehouse_public_version']);
+    const map=Object.fromEntries((data||[]).map((x:any)=>[x.key,x.value]));
+    let url=map.warehouse_public_url||'';
+    const exp=map.warehouse_public_expiry?Date.parse(map.warehouse_public_expiry):0;
+    if(!url||map.warehouse_public_version!==VERSION||!exp||exp-Date.now()<7*86400000)url=await publish();
+    return Response.redirect(url,302);
+  }catch(e){
+    console.error(e);
+    return new Response('Temporary publishing error',{status:503,headers:{'content-type':'text/plain;charset=utf-8'}});
+  }
+});
