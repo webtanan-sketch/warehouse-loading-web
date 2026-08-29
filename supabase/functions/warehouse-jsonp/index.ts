@@ -1,0 +1,35 @@
+const API='https://fujgwahltvbigyftpfjz.supabase.co/functions/v1/warehouse-api';
+
+const jsHeaders={
+  'content-type':'application/javascript; charset=utf-8',
+  'cache-control':'no-store',
+  'access-control-allow-origin':'*'
+};
+
+function safeCb(v:string|null){
+  const s=(v||'').trim();
+  return /^[A-Za-z_$][A-Za-z0-9_$\.]{0,100}$/.test(s)?s:'callback';
+}
+
+Deno.serve(async(req:Request)=>{
+  if(req.method!=='GET') return new Response('/* method not allowed */',{status:405,headers:jsHeaders});
+  try{
+    const u=new URL(req.url);
+    const cb=safeCb(u.searchParams.get('cb'));
+    const action=(u.searchParams.get('action')||'').trim();
+    const token=(u.searchParams.get('token')||'').trim();
+    let payload:any={};
+    const raw=u.searchParams.get('payload');
+    if(raw){ try{ payload=JSON.parse(raw) }catch{ payload={} } }
+    const headers:any={'content-type':'application/json'};
+    if(token) headers['authorization']='Bearer '+token;
+    const r=await fetch(API,{method:'POST',headers,body:JSON.stringify({action,...payload})});
+    let data:any;
+    try{ data=await r.json() }catch{ data={error:'پاسخ نامعتبر سرور'} }
+    data.__status=r.status;
+    return new Response(`${cb}(${JSON.stringify(data)});`,{status:200,headers:jsHeaders});
+  }catch(e){
+    const cb='callback';
+    return new Response(`${cb}(${JSON.stringify({error:'خطای ارتباط با سرور',__status:500})});`,{status:200,headers:jsHeaders});
+  }
+});
